@@ -1,1 +1,5 @@
-console.log("Broadcast Server CLI");
+#!/usr/bin/env node
+
+import { runCLI } from "./cli";
+
+runCLI();
