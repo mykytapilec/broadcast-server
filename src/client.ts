@@ -3,11 +3,9 @@ import readline from "readline";
 
 const URL = "ws://127.0.0.1:3000";
 
-type Message = {
-  type: "message";
-  user: string;
-  text: string;
-};
+type ServerMessage =
+  | { type: "system"; text: string }
+  | { type: "message"; user: string; text: string };
 
 export function startClient() {
   const rl = readline.createInterface({
@@ -15,50 +13,60 @@ export function startClient() {
     output: process.stdout,
   });
 
-  rl.question("Enter your username: ", (username) => {
-    console.log(`\n🔌 Connecting as ${username}...\n`);
+  rl.question("Enter username: ", (user) => {
+    rl.question("Enter room (e.g. general): ", (room) => {
+      const ws = new WebSocket(URL);
 
-    const ws = new WebSocket(URL);
+      ws.on("open", () => {
+        console.log(`\n🔌 Connected as ${user} in #${room}\n`);
 
-    ws.on("open", () => {
-      console.log("WS OPENED");
-      console.log("✅ Connected!");
-      console.log("💬 Type messages:\n");
+        ws.send(
+          JSON.stringify({
+            type: "join",
+            user,
+            room,
+          })
+        );
 
-      rl.on("line", (text) => {
-        const msg: Message = {
-          type: "message",
-          user: username,
-          text,
-        };
+        rl.on("line", (text) => {
+          if (!text.trim()) return;
 
-        ws.send(JSON.stringify(msg));
+          ws.send(
+            JSON.stringify({
+              type: "message",
+              text,
+            })
+          );
+        });
       });
-    });
 
-    ws.on("message", (data) => {
-      try {
-        const msg: Message = JSON.parse(data.toString());
-        console.log(`[${msg.user}]: ${msg.text}`);
-      } catch {
-        console.log(data.toString());
-      }
-    });
+      ws.on("message", (raw) => {
+        const msg = JSON.parse(raw.toString()) as ServerMessage;
 
-    ws.on("close", () => {
-      console.log("❌ Disconnected");
-      process.exit(0);
-    });
+        if (msg.type === "system") {
+          console.log(`⚡ ${msg.text}`);
+          return;
+        }
 
-    ws.on("error", (err) => {
-      console.error("⚠️ Error:", err);
-    });
+        if (msg.type === "message") {
+          console.log(`[${msg.user}]: ${msg.text}`);
+        }
+      });
 
-    process.on("SIGINT", () => {
-      console.log("\n👋 Closing connection...");
-      ws.close();
-      rl.close();
-      process.exit(0);
+      ws.on("close", () => {
+        console.log("❌ Disconnected");
+        process.exit(0);
+      });
+
+      ws.on("error", (err) => {
+        console.error("WS error:", err);
+      });
+
+      process.on("SIGINT", () => {
+        ws.close();
+        rl.close();
+        process.exit(0);
+      });
     });
   });
 }
