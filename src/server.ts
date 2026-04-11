@@ -17,7 +17,6 @@ export function startServer() {
       const message = data.toString();
       console.log(`📩 Received: ${message}`);
 
-      // broadcast всем клиентам
       for (const client of clients) {
         if (client.readyState === WebSocket.OPEN) {
           client.send(message);
